@@ -14,12 +14,17 @@ Blinks strobe LED(s)
 // Anti-collision LED pin number - needs to support PWM
 int acLedPin = 3;
 
+// Anti-collision LED minimum fade brightness (0-255)
+int minFade = 5;
+
+// Anti-collision LED maximum fade brightness (0-255)
+int maxFade = 127;
+
+// How long to wait between fade steps (milliseconds)
+int fadeInterval = 50;
+
 // Strobe LED pin number
 int strobeLedPin = 4;
-
-int minFade = 5;
-int maxFade = 127;
-int fadeInterval = 50;
 
 // Don't change, these are used to store the current state of the anti-collision LED
 int currentFade = minFade + 1;
