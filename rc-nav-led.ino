@@ -1,45 +1,48 @@
 /**
-RC LED Light Controller
-
-Designed for an ATTiny85, but should run on any arduino. Default pin numbers are for an ATTiny85
-
-Features:
-* Landing light controlled via an RC channel (can use a Y-harness on flaps or landing gear channel)
-* 2 fading anti-collision beacons
-* Double flash strobe
-
-@author Harold Asbridge
-@version 0.2
-@date 2014-06-11
-
-*/
+ * RC LED Light Controller
+ * 
+ * Designed for an ATTiny85, but should run on any arduino. Default pin numbers are for an ATTiny85
+ * 
+ * Features:
+ * Landing light controlled via an RC channel (can use a Y-harness on flaps or landing gear channel)
+ * 2 fading anti-collision beacons
+ * Double flash strobe
+ * 
+ * @author Harold Asbridge
+ * @version 0.3
+ * @date 2014-06-12
+ * 
+ */
 
 // Landing light settings
 #define LL_IRQ_NUMBER 0 // Interrupt number to use (0 = pin 2 on most boards)
 #define LL_PIN_SERVO 2 // Servo input pin number - this needs to match whatever interrupt is used
 #define LL_PIN_LIGHT 3 // Landing light output pin number
-#define LL_SERVO_THRESHOLD 20 // Percent (0 to 100) of servo position required to turn on landing light
-#define LL_SERVO_REVERSED false   // Uncomment this line if your servo channel is reversed
+#define LL_SERVO_THRESHOLD 1500 // Servo signal threshold to turn on landing light (pulse width in microseconds, 1000 to 2000)
+#define LL_SERVO_DEAD_ZONE 100 // Servo signal threshold to turn off light (pulse width in microseconds, 1000 to 2000)
+#define LL_SERVO_REVERSED true   // Uncomment this line if your servo channel is reversed
 
 // Strobe settings
 #define STB_PIN_LIGHT 4 // Pin number for strobe light output
+#define STB_BLINK_INTERVAL 2000000 // Blink interval for strobe light in microseconds
 
 // Anti-collision beacon settings
 #define ACB1_PIN_LIGHT 0 // Pin number for anti-collision beacon 1
 #define ACB2_PIN_LIGHT 1 // Pin number for anti-collision beacon 2
-#define ACB_FADE_MIN 5 // Minimum fade level for beacon (0-255)
+#define ACB_FADE_MIN 10 // Minimum fade level for beacon (0-255)
 #define ACB_FADE_MAX 50 // Maximum fade level for beacon (0-255)
-#define ACB_FADE_SPEED 0.035 // Fade speed, higher = faster, dependent on clock speed
-
-// Other
-#define BLINK_TIME 50 // How long an LED is on for a blink (in ms)
+#define ACB_FADE_INTERVAL 30000 // Fade step interval, in microseconds (lower numbers = faster fade)
 
 
 // Var declarations
 volatile unsigned long servoPulseStartTime;
-volatile int servoPosition = 0;
-volatile int lastServoReading;
+volatile int servoPulseWidth = 0;
 boolean curLandingLight = false;
+
+unsigned long lastFadeTime = 0;
+unsigned long lastStrobeTime = 0;
+int currentFade = ACB_FADE_MIN;
+int fadeDirection = 1;
 
 // Called on power on or reset
 void setup()
@@ -57,50 +60,43 @@ void setup()
 // Called continuouly
 void loop()
 {
-  // Check servo position
-  if (servoPosition >= LL_SERVO_THRESHOLD) {
-    setLandingLight(!LL_SERVO_REVERSED);
+  unsigned long currentTime = micros();
+
+  // Check if the landing light should be turned on
+  checkLandingLight();
+  
+  // Check if it's time to fade the anti-collision lights
+  if ((currentTime - lastFadeTime) > ACB_FADE_INTERVAL) {
+    doFade();
+    lastFadeTime = currentTime;
+  }
+
+  // Check if it's time to blink the strobes
+  if ((currentTime - lastStrobeTime) > STB_BLINK_INTERVAL) {
+    doStrobe();
+    lastStrobeTime = currentTime; 
+  }
+}
+
+// Check servo signal, and decide to turn on/off the landing light
+void checkLandingLight()
+{
+  // Modify threshold to prevent flicker
+  int threshold = LL_SERVO_THRESHOLD;
+  if (!curLandingLight) {
+    // Light is not on, adjust threshold up
+    threshold += LL_SERVO_DEAD_ZONE;
   } else {
-    setLandingLight(LL_SERVO_REVERSED);
+    // Light is on, adjust threshold down
+    threshold -= LL_SERVO_DEAD_ZONE;
   }
-  
-  // Fade anti-collision LEDs
-  float i;
-  for (i = ACB_FADE_MIN; i <= ACB_FADE_MAX; i += ACB_FADE_SPEED) {
-    analogWrite(ACB1_PIN_LIGHT, i);
-    analogWrite(ACB2_PIN_LIGHT, ACB_FADE_MAX - i + ACB_FADE_MIN);
-    //delay(ACB_FADE_DELAY);
+
+  // Check servo position
+  if (servoPulseWidth >= threshold) {
+    setLandingLight(true);
+  } else {
+    setLandingLight(false);
   }
-  
-  // Blink anti-collision 1 and strobe once
-  digitalWrite(STB_PIN_LIGHT, HIGH);
-  digitalWrite(ACB1_PIN_LIGHT, HIGH);
-  delay(BLINK_TIME);
-  
-  // Turn off strobe
-  digitalWrite(STB_PIN_LIGHT, LOW);
-  
-  // Put anti-collision back at the max fade brightness
-  analogWrite(ACB1_PIN_LIGHT, ACB_FADE_MAX);
-  
-  // Flash strobe again
-  delay(BLINK_TIME);
-  digitalWrite(STB_PIN_LIGHT, HIGH);
-  delay(BLINK_TIME);
-  digitalWrite(STB_PIN_LIGHT, LOW);
-  
-  // Fade anti-collision LEDs
-  for (i = ACB_FADE_MAX; i >= ACB_FADE_MIN; i -= ACB_FADE_SPEED) {
-    analogWrite(ACB1_PIN_LIGHT, i);
-    analogWrite(ACB2_PIN_LIGHT, ACB_FADE_MAX - i + ACB_FADE_MIN);
-    //delay(ACB_FADE_DELAY); 
-  }
-  
-  // Blink anti-collision 2
-  digitalWrite(ACB2_PIN_LIGHT, HIGH);
-  delay(BLINK_TIME);
-  analogWrite(ACB2_PIN_LIGHT, ACB_FADE_MAX);
-  
 }
 
 // Turn on or off landing light
@@ -115,6 +111,38 @@ void setLandingLight(boolean state)
   curLandingLight = state;
 }
 
+// Fade anti-collision LEDs
+void doFade()
+{
+  currentFade += fadeDirection;
+  if (currentFade == ACB_FADE_MAX || currentFade == ACB_FADE_MIN) {
+    // If we hit the fade limit, flash the high beacon, and flip the fade direction
+    if (fadeDirection == 1) {
+      analogWrite(ACB1_PIN_LIGHT, 255);
+
+    } else {
+      analogWrite(ACB2_PIN_LIGHT, 255);
+    }
+    delay(50); 
+    fadeDirection *= -1; 
+  }
+
+  analogWrite(ACB1_PIN_LIGHT, currentFade);
+  analogWrite(ACB2_PIN_LIGHT, ACB_FADE_MAX - currentFade + ACB_FADE_MIN);
+}
+
+// Strobe double-blink
+void doStrobe()
+{
+  digitalWrite(STB_PIN_LIGHT, HIGH);
+  delay(50);
+  digitalWrite(STB_PIN_LIGHT, LOW);
+  delay(50);
+  digitalWrite(STB_PIN_LIGHT, HIGH);
+  delay(50);
+  digitalWrite(STB_PIN_LIGHT, LOW);
+}
+
 // Measure servo PWM signal
 void measureServoSignal()
 {
@@ -122,15 +150,13 @@ void measureServoSignal()
   if(pinState == HIGH) { 
     // Beginning of PWM pulse, mark time
     servoPulseStartTime = micros();
-  } else if (pinState == LOW) {
+  } else {
     // End of PWM pulse, calculate pulse duration in mcs
-    int reading = (int)(micros() - servoPulseStartTime);
-     
-    // Average readings to filter out noise
-    int average = (int)(reading + lastServoReading) / 2;
-    lastServoReading = reading;
-    
-    // Convert to percentage
-    servoPosition = (int)((average - 1000) / 10);
+    servoPulseWidth = (int)(micros() - servoPulseStartTime);
+
+    // If servo channel is reversed, use the inverse
+    if (LL_SERVO_REVERSED) {
+      servoPulseWidth = (1000 - (servoPulseWidth - 1000)) + 1000;
+    }
   }
 }
