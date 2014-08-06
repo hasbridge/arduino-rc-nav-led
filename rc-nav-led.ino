@@ -18,8 +18,8 @@
 #define LL_IRQ_NUMBER 0 // Interrupt number to use (0 = pin 2 on most boards)
 #define LL_PIN_SERVO 2 // Servo input pin number - this needs to match whatever interrupt is used
 #define LL_PIN_LIGHT 3 // Landing light output pin number
-#define LL_SERVO_THRESHOLD 1500 // Servo signal threshold to turn on landing light (pulse width in microseconds, 1000 to 2000)
-#define LL_SERVO_DEAD_ZONE 100 // Servo signal threshold to turn off light (pulse width in microseconds, 1000 to 2000)
+#define LL_SERVO_THRESHOLD 1500 // Servo signal threshold to turn on/off landing light (pulse width in microseconds, 1000 to 2000)
+#define LL_SERVO_DEAD_ZONE 100 // Servo signal dead-zone size, eliminates flicker
 #define LL_SERVO_REVERSED true   // Uncomment this line if your servo channel is reversed
 
 // Strobe settings
