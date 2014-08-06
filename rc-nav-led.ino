@@ -20,7 +20,7 @@
 #define LL_PIN_LIGHT 3 // Landing light output pin number
 #define LL_SERVO_THRESHOLD 1500 // Servo signal threshold to turn on/off landing light (pulse width in microseconds, 1000 to 2000)
 #define LL_SERVO_DEAD_ZONE 100 // Servo signal dead-zone size, eliminates flicker
-#define LL_SERVO_REVERSED true   // Uncomment this line if your servo channel is reversed
+#define LL_SERVO_REVERSED true   // Whether or not the servo channel is reversed
 
 // Strobe settings
 #define STB_PIN_LIGHT 4 // Pin number for strobe light output
