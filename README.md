@@ -1,7 +1,7 @@
 arduino-rc-nav-led
 ==================
 
-RC aircraft navigation, anti-collision, and strobe lights using an Arduino or ATTiny85 microcontroller. See a demo of the code in action at https://www.youtube.com/watch?v=sCwhbVWebv0
+RC aircraft navigation, anti-collision, and strobe lights using an Arduino or ATTiny85 microcontroller. See a demo of the code in action at https://www.youtube.com/watch?v=tBnNrIOuIKM
 
 Current Features
 ----------------
